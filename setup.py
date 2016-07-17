@@ -11,7 +11,7 @@ setup(
     classifiers = [],
     py_modules=['imqtt'],
     scripts= ['imqtt'],
-    requires=[
+    install_requires=[
         'IPython',
     ],
 )
