@@ -71,6 +71,11 @@ class FixedHeader:
         rl, consumed = DecodeVarInt(data[1:])
         self.RemainingLength = rl
         return self, consumed + 1
+    def __repr__(self):
+        fmt = '<FixedHeader ControlPacketType: 0x%x, ControlPacketFlags: %s,' \
+         ' RemainingLength: %d>'
+        return fmt % (self.ControlPacketType, self.ControlPacketFlags,
+        self.RemainingLength)
 
 class ConnectPacket():
      class ConnectFlags:
@@ -139,6 +144,17 @@ class ConnectPacket():
      def Unmarshal(self, data):
          return None
 
+     def __repr__(self):
+         fmt = '<%s %s,  Protocol: %s, ' \
+         'Version: %d, <Flags UsernameFlag: %d, PasswordFlag: %d, ' \
+         'WillRetain: %d, WillQoS: %d, WillFlag: %d, CleanSession: %d>, ' \
+         'KeepAlive: %d, ClientID: %s, Username: %s, Password: %s>'
+         return fmt % (self.__class__.__name__, self.FixedHeader,
+         self.ProtocolName, self.ProtocolLevel, self.Flags.UsernameFlag,
+         self.Flags.PasswordFlag, self.Flags.WillRetain, self.Flags.WillQoS,
+         self.Flags.WillFlag, self.Flags.CleanSession, self.KeepAlive,
+         self.ClientID, self.Username, self.Password)
+
 class ConnackPacket():
     FixedHeader = FixedHeader()
     FixedHeader.ControlPacketType = PacketType.CONNACK
@@ -158,6 +174,10 @@ class ConnackPacket():
         self.Flags = data[i]
         self.ReturnCode = data[i+1]
         return self, i + 2
+    def __repr__(self):
+        fmt = '<%s %s, Flags: 0x%0x, ReturnCode: 0x%0x>'
+        return fmt % (self.__class__.__name__, self.FixedHeader, self.Flags,
+        self.ReturnCode)
 
 class PublishPacket():
     FixedHeader = FixedHeader()
@@ -187,6 +207,14 @@ class PublishPacket():
         p.extend(b)
         return p
 
+    def Unmarshal(self, data):
+        return None
+    def __repr__(self):
+        fmt = '<%s %s, Dup: %d, QoS: %d, Retain: %d, ' \
+        'PacketID: %d, Topic: %s, Payload: %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader, self.Dup,
+        self.QoS, self.Retain, self.PacketID, self.Topic, self.Payload)
+
 class PubackPacket:
     FixedHeader = FixedHeader()
     FixedHeader.ControlPacketType = PacketType.PUBACK
@@ -203,6 +231,10 @@ class PubackPacket:
         h, i = self.FixedHeader.Unmarshal(data)
         id, consumed = DecodePacketID(data[i:])
         return id, consumed + i
+    def __repr__(self):
+        fmt = '<%s %s, PacketID: %d>'
+        return fmt%(self.__class__.__name__, self.FixedHeader, self.PacketID)
+
 
 class PubrecPacket(PubackPacket):
     def __init__(self):
@@ -237,6 +269,12 @@ class SubscribePacket():
         p = bytearray(self.FixedHeader.Marshal())
         p.extend(b)
         return p
+    def Unmarshal(self):
+        return None
+    def __repr__(self):
+        fmt = '<%s %s, PacketID: %d, Topics: %s, Qoss: %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader, self.PacketID,
+        self.Topics, self.Qoss)
 
 class SubackPacket():
     FixedHeader = FixedHeader()
@@ -270,7 +308,10 @@ class SubackPacket():
             self.ReturnCodes.append(data[consumed+i])
         consumed += remained
         return self, consumed
-
+    def __repr__(self):
+        fmt = '<%s %s, PacketID: %d, ReturnCodes: %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader, self.PacketID,
+        self.ReturnCodes)
 
 class UnsubscribePacket:
     FixedHeader = FixedHeader()
@@ -291,6 +332,10 @@ class UnsubscribePacket:
         p = bytearray(self.FixedHeader.Marshal())
         p.extend(b)
         return p
+    def __repr__(self):
+        fmt = '<%s %s, PacketID: %d, Topics: %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader, self.PacketID,
+        self.Topics)
 
 class UnsubackPacket():
     FixedHeader = FixedHeader()
@@ -308,6 +353,10 @@ class UnsubackPacket():
         h, i = self.FixedHeader.Unmarshal(data)
         id, consumed = DecodePacketID(data[i:])
         return id, consumed + i
+    def __repr__(self):
+        fmt = '<%s %s, PacketID: %d, Topics: %s, Qoss: %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader, self.PacketID,
+        self.Topics, self.Qoss)
 
 class PingReqPacket():
     FixedHeader = FixedHeader()
@@ -320,6 +369,9 @@ class PingReqPacket():
     def Unmarshal(self, data):
         h, i = self.FixedHeader.Unmarshal(data)
         return self, i
+    def __repr__(self):
+        fmt = '<%s %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader)
 
 class PingRespPacket():
     FixedHeader = FixedHeader()
@@ -332,6 +384,9 @@ class PingRespPacket():
     def Unmarshal(self, data):
         h, i = self.FixedHeader.Unmarshal(data)
         return self, i
+    def __repr__(self):
+        fmt = '<%s %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader)
 
 class DisconnectPacket():
     FixedHeader = FixedHeader()
@@ -344,7 +399,9 @@ class DisconnectPacket():
     def Unmarshal(self, data):
         h, i = self.FixedHeader.Unmarshal(data)
         return self, i
-
+    def __repr__(self):
+        fmt = '<%s %s>'
+        return fmt%(self.__class__.__name__, self.FixedHeader)
 
 def EncodeVarInt(n):
     b = bytearray()
