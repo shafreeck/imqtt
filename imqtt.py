@@ -102,6 +102,11 @@ class ConnectPacket():
      ClientID = "imqtt"
      WillTopic = ""
      WillMessage = ""
+     def __init__(self, ClientID = 'imqtt', Username = '', Password = '', CleanSession = 1):
+         self.ClientID = ClientID
+         self.Username = Username
+         self.Password = Password
+         self.CleanSession = CleanSession
 
      def Marshal(self):
          b = bytearray()
@@ -188,9 +193,18 @@ class PublishPacket():
     Dup = 0
     QoS = 0
     Retain = 0
-    Topic = "imqtt"
+    Topic = "/imqtt/shell"
     PacketID = 0
     Payload = ""
+
+    def __init__(self, Topic = '/imqtt/shell', Payload = '', 
+            PacketID = 1, QoS = 0, Dup = 0, Retain = 0):
+        self.Topic = Topic
+        self.Payload = Payload
+        self.PacketID = PacketID
+        self.QoS = QoS
+        self.Dup = Dup
+        self.Retain = Retain
 
     def Marshal(self):
         b = bytearray()
@@ -258,6 +272,11 @@ class SubscribePacket():
     Topics = []
     Qoss = []
 
+    def __init__(self, Topic = '/imqtt/shell', QoS = 0, PacketID = 1):
+        self.Topics.append(Topic)
+        self.Qoss.append(QoS)
+        self.PacketID = PacketID
+
     def Marshal(self):
         b = bytearray()
         b.extend(EncodePacketID(self.PacketID))
@@ -321,6 +340,10 @@ class UnsubscribePacket:
 
     PacketID = 0
     Topics = []
+
+    def __init__(self, Topic = '/imqtt/shell', PacketID = 1):
+        self.Topics.append(Topic)
+        self.PacketID = PacketID
 
     def Marshal(self):
         b = bytearray()
