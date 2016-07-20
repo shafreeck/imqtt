@@ -42,17 +42,18 @@ class TCPClient:
         return self
     def Recv(self):
         while True:
+            buf = self.s.recv(1024)
+            if len(buf) == 0:
+                self.s.close()
+                raise(Exception('Connection closed'))
+            self.buf.extend(buf)
+
             try:
                 p, consumed = DecodePacket(self.buf)
                 self.buf = self.buf[consumed:]
                 return p
             except Exception as e:
-                print(e)
-                buf = self.s.recv(1024)
-                if len(buf) == 0:
-                    self.s.close()
-                    raise(Exception('Connection closed'))
-                self.buf.extend(buf)
+                continue
 
     def Close(self):
         self.s.close()
@@ -71,16 +72,18 @@ class TCPServer:
             self.conn = conn
             self.buf = bytearray()
             while True:
+                buf = self.conn.recv(1024)
+                if len(buf) == 0:
+                    self.conn.close()
+                    raise(Exception('Connection closed'))
+                self.buf.extend(buf)
+
                 try:
                     p, consumed = DecodePacket(self.buf)
                     self.buf = self.buf[consumed:]
                     ipshell.enter()
-                except Exception:
-                    buf = self.conn.recv(1024)
-                    if len(buf) == 0:
-                        self.conn.close()
-                        raise(Exception('Connection closed'))
-                    self.buf.extend(buf)
+                except Exception as e:
+                    continue
 
 
     def Send(self, p):
@@ -333,7 +336,7 @@ class PubackPacket:
 
     PacketID = 0
 
-    def __init__(self, PacketID):
+    def __init__(self, PacketID = 0):
         self.PacketID = PacketID
 
     def Marshal(self):
