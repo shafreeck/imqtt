@@ -199,9 +199,9 @@ class PublishPacket():
             b.extend(EncodePacketID(self.PacketID))
         b.extend(self.Payload)
 
-        self.FixedHeader.ControlPacketFlags &= self.Dup < 3
-        self.FixedHeader.ControlPacketFlags &= self.QoS < 1
-        self.FixedHeader.ControlPacketFlags &= self.Retain
+        self.FixedHeader.ControlPacketFlags |= self.Dup << 3
+        self.FixedHeader.ControlPacketFlags |= self.QoS << 1
+        self.FixedHeader.ControlPacketFlags |= self.Retain
         self.FixedHeader.RemainingLength = len(b)
         p = bytearray(self.FixedHeader.Marshal())
         p.extend(b)
@@ -229,8 +229,8 @@ class PubackPacket:
         return b
     def Unmarshal(self, data):
         h, i = self.FixedHeader.Unmarshal(data)
-        id, consumed = DecodePacketID(data[i:])
-        return id, consumed + i
+        self.PacketID, consumed = DecodePacketID(data[i:])
+        return self, consumed + i
     def __repr__(self):
         fmt = '<%s %s, PacketID: %d>'
         return fmt%(self.__class__.__name__, self.FixedHeader, self.PacketID)
