@@ -490,6 +490,4 @@ def DecodePacket(data):
 
     return p.Unmarshal(data)
 
-c = ConnectPacket()
-print(dir(c))
 IPython.embed()
