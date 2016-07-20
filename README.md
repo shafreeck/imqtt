@@ -1,5 +1,7 @@
 Iteractive MQTT packet manipulation shell based on IPython
 
+You would love it if your are an expert of MQTT and Python
+
 ## Enter IMQTT shell
 
 ```
