@@ -1,7 +1,9 @@
-#!coding:utf8
+#!/usr/bin/env python
+#coding:utf8
 
 import struct
 import socket
+import IPython
 
 """
 IMQTT is a interactive mqtt debug tool to build and send MQTT packets
@@ -9,16 +11,45 @@ IMQTT is a interactive mqtt debug tool to build and send MQTT packets
 Notice: The code style here is not pep8(https://www.python.org/dev/peps/pep-0008/). It is too long since I wrote python last time.
 """
 
+class PacketType:
+    CONNECT     = 0x01
+    CONNACK     = 0x02
+    PUBLISH     = 0x03
+    PUBACK      = 0x04
+    PUBREC      = 0x05
+    PUBREL      = 0x06
+    PUBCOMP     = 0x07
+    SUBSCRIBE   = 0x08
+    SUBACK      = 0x09
+    UNSUBSCRIBE = 0x0A
+    UNSUBACK    = 0x0B
+    PINGREQ     = 0x0C
+    PINGRESP    = 0x0D
+    DISCONNECT  = 0x0E
+
+
 class TCPClient:
-    def __init__(self, host, port):
+    def __init__(self, host = '127.0.0.1', port = 1883):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((host, port))
-        print("connected to", address)
+        self.buf = bytearray()
+        print("connected to", host, port)
         self.s = s
     def Send(self, p):
-        s.send(p.Marshal())
+        self.s.send(p.Marshal())
+        return self
     def Recv(self):
-        resp = s.recv(1024)
+        buf = self.s.recv(1024)
+        if len(buf) == 0:
+            self.s.close()
+            raise(Exception('Connection closed'))
+        self.buf.extend(buf)
+
+        p, consumed = DecodePacket(self.buf)
+        self.buf = self.buf[consumed:]
+        return p
+    def Close(self):
+        self.s.close()
 
 
 class FixedHeader:
@@ -27,15 +58,21 @@ class FixedHeader:
     RemainingLength = 0
     def Marshal(self):
         hdr = bytearray()
-        hdr.append(self.ControlPacketType & 0xF0) # upper four bits
-        hdr.append(self.ControlPacketFlags & 0x0F)# lower four bits
+        v = self.ControlPacketType << 4 # upper four bits
+        v |= self.ControlPacketFlags & 0x0F # lower four bits
+        hdr.append(v)
         hdr.extend(EncodeVarInt(self.RemainingLength))
         return hdr
+    def Unmarshal(self, data):
+        c = data[0]
+        self.ControlPacketType = c >> 4
+        self.ControlPacketFlags = c & 0x0F
 
-class Packet:
-    FixedHeader = FixedHeader()
+        rl, consumed = DecodeVarInt(data[1:])
+        self.RemainingLength = rl
+        return self, consumed + 1
 
-class ConnectPacket(Packet):
+class ConnectPacket():
      class ConnectFlags:
          UsernameFlag = 0
          PasswordFlag = 0
@@ -44,7 +81,8 @@ class ConnectPacket(Packet):
          WillFlag = 0
          CleanSession = 0
 
-     FixedHeader.ControlPacketType = 0x01
+     FixedHeader = FixedHeader()
+     FixedHeader.ControlPacketType = PacketType.CONNECT
      FixedHeader.ControlPacketFlags = 0x00
      FixedHeader.RemainingLength = 2
 
@@ -56,13 +94,12 @@ class ConnectPacket(Packet):
      CleanSession = 1
      Username = ""
      Password = ""
-     ClientID = ""
+     ClientID = "imqtt"
      WillTopic = ""
      WillMessage = ""
 
      def Marshal(self):
          b = bytearray()
-         b.extend(self.FixedHeader.Marshal())
 
          # Protocol name
          b.append(0x00)
@@ -74,13 +111,13 @@ class ConnectPacket(Packet):
 
          # Connect flags
          flags = 0
-         flags |= self.Flags.UsernameFlag < 7
-         flags |= self.Flags.PasswordFlag < 6
-         flags |= self.Flags.WillRetain < 5
-         flags |= self.Flags.WillQoS < 3
-         flags |= self.Flags.WillFlag < 2
-         flags |= self.Flags.CleanSession < 1
-         b.append(flags & 0xFF)
+         flags |= self.Flags.UsernameFlag << 7
+         flags |= self.Flags.PasswordFlag << 6
+         flags |= self.Flags.WillRetain << 5
+         flags |= self.Flags.WillQoS << 3
+         flags |= self.Flags.WillFlag << 2
+         flags |= self.Flags.CleanSession << 1
+         b.append(flags)
 
          # KeepAlive
          b.extend(struct.pack('!H', self.KeepAlive))
@@ -94,45 +131,94 @@ class ConnectPacket(Packet):
              b.extend(EncodeString(self.Username))
          if self.Flags.PasswordFlag == 1:
              b.extend(EncodeString(self.Password))
-         return b
-     def Unmarshal(self, data):
-         return ""
 
-class ConnackPacket(Packet):
-    FixedHeader.ControlPacketType = 0x02
+         self.FixedHeader.RemainingLength = len(b)
+         p = bytearray(self.FixedHeader.Marshal())
+         p.extend(b)
+         return p
+     def Unmarshal(self, data):
+         return None
+
+class ConnackPacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.CONNACK
     FixedHeader.ControlPacketFlags = 0x00
-    FixedHeader.RemainingLength = 0
+    FixedHeader.RemainingLength = 2
 
     Flags = 0x00 #Bit 0 is SessionPresent or not, other bits are reserved
     ReturnCode = 0x00 # Counld be 0x00 .. 0x05
 
-class PublishPacket(Packet):
-    FixedHeader.ControlPacketType = 0x03
+    def Marshal(self):
+        b = bytearray(self.FixedHeader.Marshal())
+        b.append(self.Flags)
+        b.append(self.ReturnCode)
+        return b
+    def Unmarshal(self, data):
+        h, i = self.FixedHeader.Unmarshal(data)
+        self.Flags = data[i]
+        self.ReturnCode = data[i+1]
+        return self, i + 2
+
+class PublishPacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.PUBLISH
     FixedHeader.ControlPacketFlags = 0x00 #Dup, Qos and Retain
     FixedHeader.RemainingLength = 0 #TODO calc the init length
 
+    Dup = 0
+    QoS = 0
+    Retain = 0
     Topic = "imqtt"
     PacketID = 0
     Payload = ""
 
-class PubackPacket(Packet):
-    FixedHeader.ControlPacketType = 0x04
+    def Marshal(self):
+        b = bytearray()
+        b.extend(EncodeString(self.Topic))
+        if self.QoS > 0:
+            b.extend(EncodePacketID(self.PacketID))
+        b.extend(self.Payload)
+
+        self.FixedHeader.ControlPacketFlags &= self.Dup < 3
+        self.FixedHeader.ControlPacketFlags &= self.QoS < 1
+        self.FixedHeader.ControlPacketFlags &= self.Retain
+        self.FixedHeader.RemainingLength = len(b)
+        p = bytearray(self.FixedHeader.Marshal())
+        p.extend(b)
+        return p
+
+class PubackPacket:
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.PUBACK
     FixedHeader.ControlPacketFlags = 0x00
     FixedHeader.RemainingLength = 2
 
     PacketID = 0
 
+    def Marshal(self):
+        b = bytearray(self.FixedHeader.Marshal())
+        b.extend(EncodePacketID(self.PacketID))
+        return b
+    def Unmarshal(self, data):
+        h, i = self.FixedHeader.Unmarshal(data)
+        id, consumed = DecodePacketID(data[i:])
+        return id, consumed + i
+
 class PubrecPacket(PubackPacket):
-    FixedHeader.ControlPacketType = 0x05
+    def __init__(self):
+        self.FixedHeader.ControlPacketType = PacketType.PUBREC
 
 class PubrelPacket(PubackPacket):
-    FixedHeader.ControlPacketType = 0x06
+    def __init__(self):
+        self.FixedHeader.ControlPacketType = PacketType.PUBREL
 
 class PubcompPacket(PubackPacket):
-    FixedHeader.ControlPacketType = 0x07
+    def __init__(self):
+        self.FixedHeader.ControlPacketType = PacketType.PUBCOMP
 
-class SubscribePacket(Packet):
-    FixedHeader.ControlPacketType = 0x08
+class SubscribePacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.SUBSCRIBE
     FixedHeader.ControlPacketFlags = 0x02
     FixedHeader.RemainingLength = 0
 
@@ -140,43 +226,125 @@ class SubscribePacket(Packet):
     Topics = []
     Qoss = []
 
-class SubackPacket(Packet):
-    FixedHeader.ControlPacketType = 0x09
+    def Marshal(self):
+        b = bytearray()
+        b.extend(EncodePacketID(self.PacketID))
+        for i, t in  enumerate(self.Topics):
+            qos = self.Qoss[i]
+            b.extend(EncodeString(t))
+            b.append(qos)
+        self.FixedHeader.RemainingLength = len(b)
+        p = bytearray(self.FixedHeader.Marshal())
+        p.extend(b)
+        return p
+
+class SubackPacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.SUBACK
     FixedHeader.ControlPacketFlags = 0x00
-    FixedHeader.RemainingLength = 2
+    FixedHeader.RemainingLength = 0
 
     PacketID = 0
     ReturnCodes = []
 
+    def Marshal(self):
+        b = bytearray()
+        b.extend(EncodePacketID(self.PacketID))
+        for code in self.ReturnCodes:
+            b.append(code)
+
+        self.FixedHeader.RemainingLength = len(b)
+        p = bytearray(self.FixedHeader.Marshal())
+        p.extend(b)
+        return p
+    def Unmarshal(self, data):
+        consumed = 0
+        h, i = self.FixedHeader.Unmarshal(data)
+        consumed += i
+
+        self.PacketID, i = DecodePacketID(data[consumed:])
+        consumed += i
+
+        remained = self.FixedHeader.RemainingLength - 2
+        for i in range(0, remained):
+            self.ReturnCodes.append(data[consumed+i])
+        consumed += remained
+        return self, consumed
+
+
 class UnsubscribePacket:
-    FixedHeader.ControlPacketType = 0x0A
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.UNSUBSCRIBE
     FixedHeader.ControlPacketFlags = 0x00
     FixedHeader.RemainingLength = 0
 
     PacketID = 0
     Topics = []
 
-class UnsubackPacket(Packet):
-    FixedHeader.ControlPacketType = 0x0B
+    def Marshal(self):
+        b = bytearray()
+        b.extend(EncodePacketID(self.PacketID))
+        for t in self.Topics:
+            b.extend(EncodeString(t))
+
+        self.FixedHeader.RemainingLength = len(b)
+        p = bytearray(self.FixedHeader.Marshal())
+        p.extend(b)
+        return p
+
+class UnsubackPacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.UNSUBACK
     FixedHeader.ControlPacketFlags = 0x00
     FixedHeader.RemainingLength = 2
 
     PacketID = 0
 
-class PingReqPacket(Packet):
-    FixedHeader.ControlPacketType = 0x0C
+    def Marshal(self):
+        b = bytearray(self.FixedHeader.Marshal())
+        b.extend(EncodePacketID(self.PacketID))
+        return b
+    def Unmarshal(self, data):
+        h, i = self.FixedHeader.Unmarshal(data)
+        id, consumed = DecodePacketID(data[i:])
+        return id, consumed + i
+
+class PingReqPacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.PINGREQ
     FixedHeader.ControlPacketFlags = 0x00
     FixedHeader.RemainingLength = 0
 
-class PingRespPacket(Packet):
-    FixedHeader.ControlPacketType = 0x0D
+    def Marshal(self):
+        return bytearray(self.FixedHeader.Marshal())
+    def Unmarshal(self, data):
+        h, i = self.FixedHeader.Unmarshal(data)
+        return self, i
+
+class PingRespPacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.PINGRESP
     FixedHeader.ControlPacketFlags = 0x00
     FixedHeader.RemainingLength = 0
 
-class DisconnectPacket(Packet):
-    FixedHeader.ControlPacketType = 0x0E
+    def Marshal(self):
+        return bytearray(self.FixedHeader.Marshal())
+    def Unmarshal(self, data):
+        h, i = self.FixedHeader.Unmarshal(data)
+        return self, i
+
+class DisconnectPacket():
+    FixedHeader = FixedHeader()
+    FixedHeader.ControlPacketType = PacketType.DISCONNECT
     FixedHeader.ControlPacketFlags = 0x00
     FixedHeader.RemainingLength = 0
+
+    def Marshal(self):
+        return bytearray(self.FixedHeader.Marshal())
+    def Unmarshal(self, data):
+        h, i = self.FixedHeader.Unmarshal(data)
+        return self, i
+
 
 def EncodeVarInt(n):
     b = bytearray()
@@ -190,11 +358,81 @@ def EncodeVarInt(n):
             b.append(v)
             break
     return b
+
+def DecodeVarInt(data):
+    '''
+    return decoded value and length consumed
+    '''
+    m = 1
+    v = 0
+    i = 0
+    # We do not care about the length of data now
+    # It will raise excepiton if the length is not enough
+    while True:
+        b = data[i]
+        v += (b & 127) * m
+        m *= 128
+        i += 1
+        if (m > 128**3):
+            raise Exception('Malformed Remaining Length')
+        if b & 128 == 0:
+            break
+    return v, i
+
 def EncodeString(s):
     b = bytearray()
     b.extend(struct.pack('!H', len(s)))
     b.extend(s)
     return b
+def DecodeString(data):
+    length, = struct.unpack('!H', data[0:2])
+    return data[2:length+2], length+2
+
+def EncodePacketID(id):
+    return bytearray(struct.pack('!H', id))
+def DecodePacketID(data):
+    id, = struct.unpack('!H', data[0:2])
+    return id, 2
+
+def DecodePacket(data):
+    p = None
+    consumed = 0
+
+    c = data[0]
+    t = c >> 4
+    if t == PacketType.CONNECT:
+        p = ConnectPacket()
+    elif t == PacketType.CONNACK:
+        p = ConnackPacket()
+    elif t == PacketType.PUBLISH:
+        p = PublishPacket()
+    elif t == PacketType.PUBACK:
+        p = PubackPacket()
+    elif t == PacketType.PUBREC:
+        p = PubrecPacket()
+    elif t == PacketType.PUBREL:
+        p = PubrelPacket()
+    elif t == PacketType.PUBCOMP:
+        p = PubcompPacket()
+    elif t == PacketType.SUBSCRIBE:
+        p = SubscribePacket()
+    elif t == PacketType.SUBACK:
+        p = SubackPacket()
+    elif t == PacketType.UNSUBSCRIBE:
+        p = UnsubscribePacket()
+    elif t == PacketType.UNSUBACK:
+        p = UnsubackPacket()
+    elif t == PacketType.PINGREQ:
+        p = PingReqPacket()
+    elif t == PacketType.PINGRESP:
+        p = PingRespPacket()
+    elif t == PacketType.DISCONNECT:
+        p = DisconnectPacket()
+    else:
+        raise(Exception('Unknown packet type'))
+
+    return p.Unmarshal(data)
 
 c = ConnectPacket()
 print(dir(c))
+IPython.embed()
