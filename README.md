@@ -25,7 +25,7 @@ Out[3]: <__main__.TCPClient instance at 0x215c518>
 
 ## Recv the Connack Packet
 
-```ipython
+```
 In [4]: ack = c.Recv()
 
 In [5]: ack
@@ -33,21 +33,12 @@ Out[5]: <ConnackPacket <FixedHeader ControlPacketType: 0x2, ControlPacketFlags: 
 ```
 
 ## Publish a message
-```ipython
-In [6]: pp = PublishPacket()
-
-In [7]: pp.PacketID = 1
-
-In [8]: pp.QoS = 1
-
-In [9]: pp.Topic = '/imqtt/test'
-
-In [10]: pp.Payload = 'Hello world!'
-
-In [11]: pp
-Out[11]: <PublishPacket <FixedHeader ControlPacketType: 0x3, ControlPacketFlags: 0, RemainingLength: 0>, Dup: 0, QoS: 1, Retain: 0, PacketID: 1, Topic: /imqtt/test, Payload: Hello world!>
-
-In [12]: c.Send(pp).Recv()
 ```
+In [6]: pp = PublishPacket(Topic = '/imqtt/test', Payload = 'Hello world', QoS = 1, PacketID = 1)
 
+In [7]: pp
+Out[7]: <PublishPacket <FixedHeader ControlPacketType: 0x3, ControlPacketFlags: 0, RemainingLength: 0>, Dup: 0, QoS: 1, Retain: 0, PacketID: 1, Topic: /imqtt/test, Payload: Hello world>
 
+In [8]: c.Send(pp).Recv()
+Out[8]: <PubackPacket <FixedHeader ControlPacketType: 0x4, ControlPacketFlags: 0, RemainingLength: 2>, PacketID: 1>
+```
