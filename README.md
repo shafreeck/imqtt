@@ -2,10 +2,16 @@ Iteractive MQTT packet manipulation shell based on IPython
 
 You would love it if your are an expert of MQTT and Python
 
+## Installing
+
+```
+python setup.py install
+```
+
 ## Enter IMQTT shell
 
 ```
-./imqtt.py
+$ imqtt
 ```
 
 ## Build a TCP Client and connect to mqtt server
