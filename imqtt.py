@@ -208,7 +208,7 @@ class PublishPacket():
         b.extend(EncodeString(self.Topic))
         if self.QoS > 0:
             b.extend(EncodePacketID(self.PacketID))
-        b.extend(self.Payload)
+        b.extend(bytes(self.Payload, 'utf-8'))
 
         self.FixedHeader.ControlPacketFlags |= self.Dup << 3
         self.FixedHeader.ControlPacketFlags |= self.QoS << 1
@@ -459,7 +459,7 @@ def DecodeVarInt(data):
 def EncodeString(s):
     b = bytearray()
     b.extend(struct.pack('!H', len(s)))
-    b.extend(s)
+    b.extend(bytes(s, 'utf-8'))
     return b
 def DecodeString(data):
     length, = struct.unpack('!H', data[0:2])
