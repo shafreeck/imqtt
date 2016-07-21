@@ -5,7 +5,7 @@ You would love it if your are an expert of MQTT and Python
 ## Installing
 
 ```
-python setup.py install
+pip install imqtt
 ```
 
 ## Enter IMQTT shell
