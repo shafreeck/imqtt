@@ -94,7 +94,6 @@ class ConnectPacket():
      Flags = ConnectFlags()
      KeepAlive = 300
 
-     CleanSession = 1
      Username = ""
      Password = ""
      ClientID = "imqtt"
@@ -104,7 +103,7 @@ class ConnectPacket():
          self.ClientID = ClientID
          self.Username = Username
          self.Password = Password
-         self.CleanSession = CleanSession
+         self.Flags.CleanSession = CleanSession
 
      def Marshal(self):
          b = bytearray()
