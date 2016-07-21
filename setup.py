@@ -12,6 +12,6 @@ setup(
     py_modules=['imqtt'],
     scripts= ['imqtt'],
     requires=[
-        'ipython',
+        'IPython',
     ],
 )
