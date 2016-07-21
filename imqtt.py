@@ -1,9 +1,7 @@
-#!/usr/bin/env python
 #coding:utf8
 
 import struct
 import socket
-import IPython
 
 """
 IMQTT is a interactive mqtt debug tool to build and send MQTT packets
@@ -513,4 +511,3 @@ def DecodePacket(data):
 
     return p.Unmarshal(data)
 
-IPython.embed()
