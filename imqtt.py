@@ -144,7 +144,7 @@ class ConnectPacket():
      ClientID = "imqtt"
      WillTopic = ""
      WillMessage = ""
-     def __init__(self, ClientID = 'imqtt', Username = '', Password = '', CleanSession = 1):
+     def __init__(self, ClientID = 'imqtt', Username = '', Password = '', CleanSession = 1, KeepAlive = 300):
          self.ClientID = ClientID
          self.Username = Username
          self.Password = Password
