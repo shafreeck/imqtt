@@ -10,7 +10,7 @@ There are some varibles you can use:
  self: the tcp server object
  buf : current data received
  p   : the packet that unmarshaled from buf 
-Also, all python features are avaliable. Type 'exit()' or press 'Ctrl-D' to quit the shell.
+Also, all IPython features are avaliable. Type 'exit()' or press 'Ctrl-D' to quit the shell.
 """
 
 ipshell = InteractiveShellEmbed(banner1= banner, exit_msg= 'Bye!')
