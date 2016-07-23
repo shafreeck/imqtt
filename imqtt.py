@@ -2,7 +2,7 @@
 
 import struct
 import socket
-import IPython
+import ipython
 
 """
 IMQTT is a interactive mqtt debug tool to build and send MQTT packets
@@ -73,8 +73,7 @@ class TCPServer:
                 try:
                     p, consumed = DecodePacket(self.buf)
                     self.buf = self.buf[consumed:]
-                    IPython.embed()
-                    print ('Exit from nested ipython, waiting to receive...')
+                    ipython.enter()
                 except Exception:
                     buf = self.conn.recv(1024)
                     if len(buf) == 0:
