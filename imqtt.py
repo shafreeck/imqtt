@@ -2,6 +2,7 @@
 
 import struct
 import socket
+import IPython
 
 """
 IMQTT is a interactive mqtt debug tool to build and send MQTT packets
@@ -36,19 +37,60 @@ class TCPClient:
     def Send(self, p):
         self.s.send(p.Marshal())
         return self
+    def SendRaw(self, data):
+        self.s.send(data)
+        return self
     def Recv(self):
-        buf = self.s.recv(1024)
-        if len(buf) == 0:
-            self.s.close()
-            raise(Exception('Connection closed'))
-        self.buf.extend(buf)
+        while True:
+            try:
+                p, consumed = DecodePacket(self.buf)
+                self.buf = self.buf[consumed:]
+                return p
+            except Exception:
+                buf = self.s.recv(1024)
+                if len(buf) == 0:
+                    self.s.close()
+                    raise(Exception('Connection closed'))
+                self.buf.extend(buf)
 
-        p, consumed = DecodePacket(self.buf)
-        self.buf = self.buf[consumed:]
-        return p
     def Close(self):
         self.s.close()
 
+class TCPServer:
+    def __init__(self, host = '127.0.0.1', port = 1883):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind((host, port))
+        s.listen(128)
+        self.s = s
+        print('listening on', host, port)
+
+    def Serve(self):
+        while True:
+            conn, addr = self.s.accept()
+            self.conn = conn
+            self.buf = bytearray()
+            while True:
+                try:
+                    p, consumed = DecodePacket(self.buf)
+                    self.buf = self.buf[consumed:]
+                    IPython.embed()
+                    print ('Exit from nested ipython, waiting to receive...')
+                except Exception:
+                    buf = self.conn.recv(1024)
+                    if len(buf) == 0:
+                        self.conn.close()
+                        raise(Exception('Connection closed'))
+                    self.buf.extend(buf)
+
+
+    def Send(self, p):
+        self.conn.send(p.Marshal())
+        return self
+    def SendRaw(self, data):
+        self.conn.send(data)
+        return self
+    def Close(self):
+        self.s.close()
 
 class FixedHeader:
     ControlPacketType = 0x00
@@ -144,7 +186,46 @@ class ConnectPacket():
          p.extend(b)
          return p
      def Unmarshal(self, data):
-         return None
+         h, n = self.FixedHeader.Unmarshal(data)
+         consumed = n
+
+         self.ProtocolName, n = DecodeString(data[consumed:])
+         consumed += n
+
+         self.ProtocolLevel = data[consumed]
+         consumed += 1
+
+         flags = data[consumed]
+         consumed += 1
+         self.Flags.UsernameFlag = flags >> 7 & 0x01
+         self.Flags.PasswordFlag = flags >> 6 & 0x01
+         self.Flags.WillRetain = flags >> 5 & 0x01
+         self.Flags.WillQoS = flags >> 3 & 0x03
+         self.Flags.WillFlag = flags >> 2 & 0x01
+         self.Flags.CleanSession = flags >> 1 & 0x01
+         self.Flags.Reserved = flags & 0x01
+
+         self.KeepAlive, = struct.unpack('!H', data[consumed:consumed+2])
+         consumed += 2
+
+         self.ClientID, n = DecodeString(data[consumed:])
+         consumed += n
+
+         if self.Flags.WillFlag == 1:
+             self.WillTopic, n = DecodeString(data[consumed:])
+             consumed += n
+
+             self.WillMessage, n = DecodeString(data[consumed:])
+             consumed += n
+
+         if self.Flags.UsernameFlag == 1:
+             self.Username, n = DecodeString(data[consumed:])
+             consumed += n
+         if self.Flags.PasswordFlag == 1:
+             self.Password, n = DecodeString(data[consumed:])
+             consumed += n
+         
+         return self, consumed 
 
      def __repr__(self):
          fmt = '<%s %s,  Protocol: %s, ' \
@@ -195,7 +276,7 @@ class PublishPacket():
     Payload = ""
 
     def __init__(self, Topic = '/imqtt/shell', Payload = '', 
-            PacketID = 1, QoS = 0, Dup = 0, Retain = 0):
+            PacketID = 0, QoS = 0, Dup = 0, Retain = 0):
         self.Topic = Topic
         self.Payload = Payload
         self.PacketID = PacketID
@@ -219,7 +300,25 @@ class PublishPacket():
         return p
 
     def Unmarshal(self, data):
-        return None
+        h, n = self.FixedHeader.Unmarshal(data)
+        consumed = n
+
+        self.Dup = self.FixedHeader.ControlPacketFlags >> 3 & 0x01
+        self.QoS = self.FixedHeader.ControlPacketFlags >> 1 & 0x03
+        self.Retain = self.FixedHeader.ControlPacketFlags & 0x01
+
+        self.Topic, n = DecodeString(data[consumed:])
+        consumed += n
+
+        if self.QoS > 0:
+            self.PacketID, n = DecodePacketID(data[consumed:])
+            consumed += n
+
+        left = self.FixedHeader.RemainingLength - 2
+        self.Payload = data[consumed: consumed + left]
+        consumed += left
+        return self, consumed
+
     def __repr__(self):
         fmt = '<%s %s, Dup: %d, QoS: %d, Retain: %d, ' \
         'PacketID: %d, Topic: %s, Payload: %s>'
@@ -233,6 +332,9 @@ class PubackPacket:
     FixedHeader.RemainingLength = 2
 
     PacketID = 0
+
+    def __init__(self, PacketID):
+        self.PacketID = PacketID
 
     def Marshal(self):
         b = bytearray(self.FixedHeader.Marshal())
@@ -285,8 +387,28 @@ class SubscribePacket():
         p = bytearray(self.FixedHeader.Marshal())
         p.extend(b)
         return p
+
     def Unmarshal(self):
-        return None
+        h, n = self.FixedHeader.Unmarshal()
+        consumed += n
+
+        self.PacketID, n = DecodePacketID(data[consumed:])
+        consumed += n
+
+        left = self.FixedHeader.RemainingLength - 2
+        while left > 0:
+            topic, n = DecodeString(data[consumed:])
+            consumed += n
+
+            qos = data[consumed]
+            consumed += 1
+
+            self.Topics.append(topic)
+            self.Qoss.append(qos)
+
+            left -= n + 1
+        return self, consumed
+
     def __repr__(self):
         fmt = '<%s %s, PacketID: %d, Topics: %s, Qoss: %s>'
         return fmt%(self.__class__.__name__, self.FixedHeader, self.PacketID,
