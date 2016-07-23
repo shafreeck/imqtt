@@ -50,3 +50,43 @@ Out[7]: <PublishPacket <FixedHeader ControlPacketType: 0x3, ControlPacketFlags: 
 In [8]: c.Send(pp).Recv()
 Out[8]: <PubackPacket <FixedHeader ControlPacketType: 0x4, ControlPacketFlags: 0, RemainingLength: 2>, PacketID: 1>
 ```
+
+## Working as server mode (version 0.2.2)
+
+### Lisen and serve
+```
+Welcome to imqtt !
+An iteractive MQTT packet manipulation shell based on IPython.
+Github: https://github.com/shafreeck/imqtt
+
+In [1]: s = TCPServer(host = '127.0.0.1', port = 1883)
+listening on 127.0.0.1 1883
+
+In [2]: s.Serve()
+```
+### It will break and enter the interactive shell when received a packet
+```
+Packet received
+
+This is an interactive environment, and being triggered when there was a packet received.
+There are some varibles you can use:
+ self: the tcp server object
+ buf : current data received
+ p   : the packet that unmarshaled from buf
+Also, all python features are avaliable. Type 'exit()' or press 'Ctrl-D' to quit the shell.
+```
+
+### Inspect the received packet and send ack back
+```
+In [1]: p
+Out[1]: <ConnectPacket <FixedHeader ControlPacketType: 0x1, ControlPacketFlags: 0, RemainingLength: 17>,  Protocol: bytearray(b'MQTT'), Version: 4, <Flags UsernameFlag: 0, PasswordFlag: 0, WillRetain: 0, WillQoS: 0, WillFlag: 0, CleanSession: 1>, KeepAlive: 300, ClientID: bytearray(b'imqtt'), Username: , Password: >
+
+In [2]: self.Send(ConnackPacket())
+Out[2]: <imqtt.TCPServer at 0x10b890e10>
+```
+
+### Exit the shell and continue to serve
+```
+In [3]: exit()
+Continue to serve...
+```
