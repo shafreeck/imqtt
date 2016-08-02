@@ -1,7 +1,7 @@
 from setuptools import setup
 setup(
     name = 'imqtt',
-    version = '0.2.3',
+    version = '0.2.4',
     description = 'Iteractive MQTT packet manipulation shell based on IPython',
     author = 'Shafreeck Sea',
     author_email = 'shafreeck@gmail.com',
