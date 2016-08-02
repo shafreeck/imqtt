@@ -144,7 +144,7 @@ class ConnectPacket():
      ClientID = "imqtt"
      WillTopic = ""
      WillMessage = ""
-     def __init__(self, ClientID = 'imqtt', Username = '', Password = '', CleanSession = 1):
+     def __init__(self, ClientID = 'imqtt', Username = '', Password = '', CleanSession = 1, KeepAlive = 300):
          self.ClientID = ClientID
          self.Username = Username
          self.Password = Password
@@ -457,7 +457,7 @@ class SubackPacket():
 class UnsubscribePacket:
     FixedHeader = FixedHeader()
     FixedHeader.ControlPacketType = PacketType.UNSUBSCRIBE
-    FixedHeader.ControlPacketFlags = 0x00
+    FixedHeader.ControlPacketFlags = 0x02
     FixedHeader.RemainingLength = 0
 
     PacketID = 0
