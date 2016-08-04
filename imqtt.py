@@ -375,6 +375,8 @@ class SubscribePacket():
     Qoss = []
 
     def __init__(self, Topic = '/imqtt/shell', QoS = 0, PacketID = 1):
+        self.Topics = []
+        self.Qoss = []
         self.Topics.append(Topic)
         self.Qoss.append(QoS)
         self.PacketID = PacketID
