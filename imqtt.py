@@ -428,6 +428,9 @@ class SubackPacket():
     PacketID = 0
     ReturnCodes = []
 
+    def __init__(self):
+        self.ReturnCodes = []
+
     def Marshal(self):
         b = bytearray()
         b.extend(EncodePacketID(self.PacketID))
